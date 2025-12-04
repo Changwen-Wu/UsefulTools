@@ -463,24 +463,91 @@ function inclu_idx = pick_sub(raw_simp, header_simp, cri_simp)
 end
 
 function [raw_final, ex_idx] = thre_sub_num(raw_inclu, cri_num_HC, cri_num_ASD, site_col, dx_col)
+% THRE_SUB_NUM 增强版：筛选站点
+% 1. 剔除人数过少的站点
+% 2. 剔除组间比例极度失衡的站点 (防止 50:2 这种数据进入匹配)
+% 3. 剔除单一性别的站点 (防止卡方检验报错)
+
+% --- 配置区 ---
+MAX_RATIO = 4; % 【新功能】最大比例阈值 (例如 3 表示一组人数不能是另一组的3倍以上)
+CHECK_SEX_DIV = true; % 【新功能】是否检查性别多样性 (防止单性别站点)
+SEX_COL_NAME = 'SEX'; % 你的性别列名
+% -------------
+
+fprintf('   > Filtering Sites (Min Count: [%d, %d] | Max Ratio: 1:%.1f)...\n', ...
+    cri_num_HC, cri_num_ASD, MAX_RATIO);
+
 header_inclu = raw_inclu(1, :);
 site_idx = find(strcmp(strtrim(header_inclu), site_col));
 dx_idx = find(strcmp(strtrim(header_inclu), dx_col));
+sex_idx = find(strcmp(strtrim(header_inclu), SEX_COL_NAME)); % 用于检查单性别
+
+if isempty(site_idx) || isempty(dx_idx)
+    error('Site or Dx column not found in thre_sub_num.');
+end
+
 raw_site = raw_inclu(2:end, site_idx);
 raw_dx = cell2mat(raw_inclu(2:end, dx_idx));
+if CHECK_SEX_DIV && ~isempty(sex_idx)
+    raw_sex = raw_inclu(2:end, sex_idx);
+end
+
 site_unique = unique(raw_site);
 ex_idx = zeros(size(raw_inclu, 1)-1, 1);
+
+dropped_sites = {};
+
 for i = 1:length(site_unique)
+    site_name = site_unique{i};
+    if isnumeric(site_name), site_name = num2str(site_name); end
+    
     idx_tmp = strcmp(site_unique{i}, raw_site);
     dx_tmp = raw_dx(idx_tmp);
-    if(sum(dx_tmp == 1) < cri_num_ASD)
-        ex_idx(idx_tmp) = 1; continue;
-    elseif(sum(dx_tmp == 2) < cri_num_HC)
-        ex_idx(idx_tmp) = 1; continue;
+    
+    n_ASD = sum(dx_tmp == 1);
+    n_HC  = sum(dx_tmp == 2);
+    
+    is_drop = false;
+    reason = '';
+    
+    % 1. 检查最小人数
+    if (n_ASD < cri_num_ASD) || (n_HC < cri_num_HC)
+        is_drop = true;
+        reason = sprintf('Too few sub (ASD=%d, HC=%d)', n_ASD, n_HC);
+    
+    % 2. 【新增】检查比例失衡 (Ratio Check)
+    elseif (n_ASD > n_HC * MAX_RATIO) || (n_HC > n_ASD * MAX_RATIO)
+        is_drop = true;
+        reason = sprintf('Imbalanced Ratio (ASD=%d, HC=%d)', n_ASD, n_HC);
+        
+    % 3. 【新增】检查性别多样性 (Single Sex Check)
+    elseif CHECK_SEX_DIV && ~isempty(sex_idx)
+        sex_tmp = raw_sex(idx_tmp);
+        % 尝试转字符串处理，兼容 'M'/'F' 或 1/2
+        if isnumeric(sex_tmp{1}), sex_tmp = cellfun(@num2str, sex_tmp, 'UniformOutput', false); end
+        if length(unique(sex_tmp)) < 2
+            is_drop = true;
+            reason = 'Single Sex';
+        end
+    end
+    
+    % 执行标记
+    if is_drop
+        ex_idx(idx_tmp) = 1;
+        dropped_sites(end+1,:) = {site_name, reason};
     end
 end
-ex_idx_full = [0; ex_idx];
+% 打印剔除报告
+if ~isempty(dropped_sites)
+    fprintf('     [Dropped Sites]:\n');
+    for k = 1:size(dropped_sites, 1)
+        fprintf('       - %-15s : %s\n', dropped_sites{k,1}, dropped_sites{k,2});
+    end
+end
+ex_idx_full = [0; ex_idx]; % 补上表头行
 raw_final = raw_inclu(ex_idx_full == 0, :);
+
+fprintf('     -> %d subjects remained.\n', size(raw_final,1)-1);
 end
 
 function [cri_type, val_header, val_cat, cri_header, cri_category, ignore_nan, valid] = parse_match_criteria(raw_data, match_cri)
