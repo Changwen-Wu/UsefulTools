@@ -1,5 +1,5 @@
 function [raw_final, p_stats, summary_str] = Clinical_Match(pheno_path, sheet_name, inclu_cri, ...
-    match_cri, match_method, min_counts, site_col_name, dx_col_name, group_names, target_p)
+    match_cri, match_method, min_counts, site_col_name, dx_col_name, group_names, target_p, max_iter_cutoff)
 % CLINICAL_MATCH  临床研究被试筛选与协变量平衡工具箱
 %
 % 功能概述：
@@ -77,12 +77,17 @@ function [raw_final, p_stats, summary_str] = Clinical_Match(pheno_path, sheet_na
 %   raw_final   : (Cell)   匹配完成后的最终数据表。
 %   p_stats     : (Struct) 包含各匹配指标的最终 P 值及统计量。
 %   summary_str : (String) 格式化的统计报告（含各站点样本分布及最终 P 值）。
+%   max_iter_cutoff (Optional): 最大允许迭代轮次（剔除人数）。
+%                               如果当前运行的轮次超过此值，函数将直接返回 9999。
+%                               用于在多重启动策略中，剪枝掉那些明显不如已知最优解的运行。
 % =========================================================================
 
 %% 0. 参数默认值与基础设置
 if nargin < 7 || isempty(site_col_name), site_col_name = 'SITE_ID'; end
 if nargin < 8 || isempty(dx_col_name), dx_col_name = 'DX_GROUP'; end
 if nargin < 9, group_names = {}; end
+if nargin < 10 || isempty(target_p), target_p = 0.15; end
+if nargin < 11 || isempty(max_iter_cutoff), max_iter_cutoff = Inf; end %
 
 % 初始化随机种子
 rng('shuffle');
@@ -96,7 +101,6 @@ catch ME
 end
 header = strtrim(raw(1,:));
 raw(1,:) = header;
-
 if ~isempty(inclu_cri)
     inclu_cri(cellfun(@isempty, inclu_cri)) = [];
 end
@@ -165,27 +169,36 @@ if strcmpi(match_method, 'None')
 else
     fprintf('Starting matching process using method: %s...\n', match_method);
     [cri_type, val_header, val_cat, ~, ~, ignore_nan, valid_criteria] = parse_match_criteria(raw_final, match_cri);
-
+    
     if valid_criteria
         s_idx = find(strcmp(header, site_col_name));
         g_idx = find(strcmp(header, dx_col_name));
         site_data = raw_final(2:end, s_idx);
         group_data = raw_final(2:end, g_idx);
-
+        
         if strcmpi(match_method, 'greedy')
-            % 贪婪算法
-            [raw_final] = match_greedy(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p);
-
+            % 贪婪算法 - [MODIFIED] 传入 max_iter_cutoff
+            [raw_final] = match_greedy(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p, max_iter_cutoff);
+            
         elseif strcmpi(match_method, 'annealing')
-            % 模拟退火算法
-            [raw_final] = match_annealing(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p);
-
+            % 模拟退火算法 - [MODIFIED] 传入 max_iter_cutoff
+            [raw_final] = match_annealing(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p, max_iter_cutoff);
+            
         elseif strcmpi(match_method, 'random')
-            % 随机算法
+            % 随机算法 (通常不需要截断，这里保持原样)
             [raw_final] = match_random(raw_final, cri_type, val_header, val_cat, ignore_nan, dx_col_name);
         else
             warning('Unknown match method. Use Greedy, Annealing, or Random.');
         end
+        
+        % [NEW] 检查是否触发了中止条件 (9999)
+        if isscalar(raw_final) && raw_final == 9999
+            fprintf('*** Aborting: Iteration count exceeded limit (%d). Returning 9999. ***\n', max_iter_cutoff);
+            p_stats = [];
+            summary_str = 'Aborted due to iteration limit.';
+            return; % 直接结束函数
+        end
+        
     else
         warning('No valid matching criteria found.');
     end
@@ -200,6 +213,7 @@ else
     p_whole = -1;
     p_sep = [];
 end
+
 p_stats.p_whole = p_whole;
 p_stats.p_sep = p_sep;
 
@@ -216,19 +230,20 @@ if ~isempty(group_names)
 else
     summary_str = generate_summary(raw_final, p_sep, cri_type, cri_header, cri_category, site_col_name, dx_col_name, {'HC', 'ASD'});
 end
+
 fprintf('--------------------------------------------------\n');
 fprintf(summary_str);
 fprintf('--------------------------------------------------\n');
 end
 
+
 %% ================== Helper Functions ==================
 
-function [raw_final] = match_greedy(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p)
+function [raw_final] = match_greedy(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p, max_iter_cutoff)
 % ----------------------------------------------
 % 贪婪算法实现
 % ----------------------------------------------
 batch_size = 1;
-
 % 数据预处理 (站点/分组 ID 化)
 if iscell(site_data)
     if any(cellfun(@isnumeric, site_data)), site_data = cellfun(@(x) char(string(x)), site_data, 'UniformOutput', false); end
@@ -237,11 +252,13 @@ else
     [~, ~, site_idx_all] = unique(site_data);
 end
 if iscell(group_data), group_vec = cell2mat(group_data); else, group_vec = group_data; end
+
 u_sites = unique(site_idx_all); n_sites = length(u_sites);
 
 % 初始检查
 [~, p_vec] = match_cal_p(cri_type, val_header, val_cat, ignore_nan);
 if isempty(p_vec), min_p = 0; else, min_p = min(p_vec(~isnan(p_vec))); end
+
 if min_p >= target_p, fprintf('Initial data matched (min P = %.4f). No removal.\n', min_p); return; end
 
 ex_id = [];
@@ -249,30 +266,37 @@ total_subjects = length(val_header{1});
 iter_count = 0;
 
 fprintf('Parallel pool initializing (Greedy)... please wait.\n');
-
 while length(ex_id) < total_subjects - 2
     iter_count = iter_count + 1;
-
+    
+    % [NEW] 检查是否超过最小轮次限制
+    if iter_count > max_iter_cutoff
+        raw_final = 9999;
+        return;
+    end
+    
     % 刹车检查
     [vh_curr, vc_curr] = match_exclude(cri_type, val_header, val_cat, ex_id);
     [~, p_vec_curr] = match_cal_p(cri_type, vh_curr, vc_curr, ignore_nan);
     current_min_p = min(p_vec_curr(~isnan(p_vec_curr)));
     if isempty(current_min_p), current_min_p = 0; end
+    
     if current_min_p >= target_p, fprintf('  -> Target reached (min P = %.4f). Stopping.\n', current_min_p); break; end
-
+    
     % 计算站点计数
     current_counts = zeros(n_sites, 2);
     valid_indices = setdiff(1:total_subjects, ex_id);
     curr_sites = site_idx_all(valid_indices); curr_grps = group_vec(valid_indices);
+    
     for s = 1:n_sites
         sid = u_sites(s); mask = (curr_sites == sid);
         current_counts(s, 1) = sum(curr_grps(mask) == 2);
         current_counts(s, 2) = sum(curr_grps(mask) == 1);
     end
-
+    
     scores = zeros(total_subjects, 1);
     is_excluded = false(total_subjects, 1); is_excluded(ex_id) = true;
-
+    
     % 并行计算得分
     parfor j = 1:total_subjects
         score_temp = -Inf;
@@ -285,6 +309,7 @@ while length(ex_id) < total_subjects - 2
             elseif this_grp == 1
                 if current_counts(s_row, 2) <= min_counts(2), can_remove = false; end
             end
+            
             if can_remove
                 [vh_t, vc_t] = match_exclude(cri_type, val_header, val_cat, [ex_id, j]);
                 score_temp = match_cal_p(cri_type, vh_t, vc_t, ignore_nan);
@@ -292,30 +317,31 @@ while length(ex_id) < total_subjects - 2
         end
         scores(j) = score_temp;
     end
-
+    
     % 贪婪选择：直接选最大值
     [sorted_scores, sorted_idx] = sort(scores, 'descend');
     if sorted_scores(1) == -Inf, fprintf('  -> Locked. Stopping.\n'); break; end
-
+    
     best_candidates = sorted_idx(1:batch_size);
+    
     if(rem(iter_count, 5) == 0)
         fprintf('Greedy Iter %d: Removed %d. Score=%.4e | Min P=%.4e\n', iter_count, length(best_candidates), sorted_scores(1), current_min_p);
     end
     ex_id = [ex_id, best_candidates'];
 end
+
 raw_final(ex_id + 1, :) = [];
 end
 
-function [raw_final] = match_annealing(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p)
+function [raw_final] = match_annealing(raw_final, cri_type, val_header, val_cat, ignore_nan, site_data, group_data, min_counts, target_p, max_iter_cutoff)
 % ----------------------------------------------
 % 模拟退火 (Simulated Annealing) 实现
 % ----------------------------------------------
-
 % [SA 参数配置]
-T = 0.5;           % 初始温度 (Temperature)。控制"随机程度"。0.5 是个经验值，既不太高也不太低。
-alpha = 0.95;      % 冷却系数 (Cooling Rate)。每次迭代 T = T * alpha。越接近 1 降温越慢，搜索越细致。
-% ----------------------------------------------
+T = 0.5;           
+alpha = 0.95;      
 
+% ----------------------------------------------
 % 数据预处理 (同 Greedy)
 if iscell(site_data)
     if any(cellfun(@isnumeric, site_data)), site_data = cellfun(@(x) char(string(x)), site_data, 'UniformOutput', false); end
@@ -324,11 +350,13 @@ else
     [~, ~, site_idx_all] = unique(site_data);
 end
 if iscell(group_data), group_vec = cell2mat(group_data); else, group_vec = group_data; end
+
 u_sites = unique(site_idx_all); n_sites = length(u_sites);
 
 % 初始检查
 [~, p_vec] = match_cal_p(cri_type, val_header, val_cat, ignore_nan);
 if isempty(p_vec), min_p = 0; else, min_p = min(p_vec(~isnan(p_vec))); end
+
 if min_p >= target_p, fprintf('Initial data matched. No removal.\n'); return; end
 
 ex_id = [];
@@ -336,33 +364,40 @@ total_subjects = length(val_header{1});
 iter_count = 0;
 
 fprintf('Parallel pool initializing (Annealing)... please wait.\n');
-
 while length(ex_id) < total_subjects - 2
     iter_count = iter_count + 1;
-
+    
+    % [NEW] 检查是否超过最小轮次限制
+    if iter_count > max_iter_cutoff
+        raw_final = 9999;
+        return;
+    end
+    
     % 刹车检查
     [vh_curr, vc_curr] = match_exclude(cri_type, val_header, val_cat, ex_id);
     [~, p_vec_curr] = match_cal_p(cri_type, vh_curr, vc_curr, ignore_nan);
     current_min_p = min(p_vec_curr(~isnan(p_vec_curr)));
     if isempty(current_min_p), current_min_p = 0; end
+    
     if current_min_p >= target_p
         fprintf('  -> Target reached (min P = %.4f). Stopping.\n', current_min_p);
         break;
     end
-
+    
     % 计数逻辑
     current_counts = zeros(n_sites, 2);
     valid_indices = setdiff(1:total_subjects, ex_id);
     curr_sites = site_idx_all(valid_indices); curr_grps = group_vec(valid_indices);
+    
     for s = 1:n_sites
         sid = u_sites(s); mask = (curr_sites == sid);
         current_counts(s, 1) = sum(curr_grps(mask) == 2);
         current_counts(s, 2) = sum(curr_grps(mask) == 1);
     end
-
+    
     scores = zeros(total_subjects, 1);
     is_excluded = false(total_subjects, 1); is_excluded(ex_id) = true;
-
+    
     % Parfor 计算每一个人的"移除价值"
     parfor j = 1:total_subjects
         score_temp = -Inf;
@@ -373,7 +408,7 @@ while length(ex_id) < total_subjects - 2
             if this_grp == 2, if current_counts(s_row, 1) <= min_counts(1), can_remove = false; end
             elseif this_grp == 1, if current_counts(s_row, 2) <= min_counts(2), can_remove = false; end
             end
-
+            
             if can_remove
                 [vh_t, vc_t] = match_exclude(cri_type, val_header, val_cat, [ex_id, j]);
                 score_temp = match_cal_p(cri_type, vh_t, vc_t, ignore_nan);
@@ -381,52 +416,46 @@ while length(ex_id) < total_subjects - 2
         end
         scores(j) = score_temp;
     end
-
+    
     % === 模拟退火核心选择逻辑 ===
     valid_mask = scores > -Inf;
     if ~any(valid_mask), break; end
-
+    
     valid_scores = scores(valid_mask);
     valid_indices_map = find(valid_mask);
-
-    % 1. 归一化得分 (Normalization)
-    % 为了让 exp() 计算不溢出且具有物理意义，将分数归一化到 [0, 1] 区间
+    
     max_s = max(valid_scores);
     min_s = min(valid_scores);
+    
     if max_s == min_s
-        norm_scores = zeros(size(valid_scores)); % 所有得分相同，概率均等
+        norm_scores = zeros(size(valid_scores));
     else
         norm_scores = (valid_scores - min_s) / (max_s - min_s);
     end
-
-    % 2. 计算 Boltzmann 权重 (Softmax)
-    % Probability ~ exp(Score / T)
+    
     weights = exp(norm_scores / T);
-
-    % 3. 概率抽样 (Probabilistic Sampling)
-    % randsample 使用权重进行抽样。权重越大，被选中的概率越高。
-    % 当 T 很大时，weights 趋向一致 (随机游走)。
-    % 当 T 很小时，max score 的 weight 极大 (趋向贪婪)。
+    
     selected_idx_local = randsample(length(weights), 1, true, weights);
     candidate_to_remove = valid_indices_map(selected_idx_local);
-
     chosen_score = scores(candidate_to_remove);
-
+    
     if(rem(iter_count, 5) == 0)
         fprintf('SA Iter %d (T=%.3f): Removed 1 sub. Score=%.4e (Max=%.4e) | Min P=%.4e\n', ...
             iter_count, T, chosen_score, max_s, current_min_p);
     end
-
+    
     ex_id = [ex_id, candidate_to_remove];
-
+    
     % 4. 降温 (Cooling)
     T = T * alpha;
-    % 防止温度过低导致计算溢出，设定一个下限
     if T < 0.001, T = 0.001; end
 end
+
 raw_final(ex_id + 1, :) = [];
 end
 
+% ... (其余辅助函数 simplify_cri, pick_sub, thre_sub_num, parse_match_criteria, match_cal_p, match_random, match_exclude, generate_summary 保持不变，无需修改) ...
+% 为节省篇幅，此处省略了未修改的辅助函数，请保留您原代码中的这些函数。
 function [raw_simp, header_simp, cri_simp] = simplify_cri(raw, header, inclu_cri)
 [cri_trim] = regexp(inclu_cri, '^([^#]+)#?.*$', 'tokens');
 inclu_idx = [];
@@ -450,7 +479,6 @@ else
 end
 cri_simp = cri_trim;
 end
-
 function inclu_idx = pick_sub(raw_simp, header_simp, cri_simp)
 inclu_idx = ones(size(raw_simp, 1)-1, 1);
 for i = 1:length(cri_simp)
@@ -486,7 +514,6 @@ for i = 1:length(cri_simp)
     inclu_idx = inclu_idx & mask;
 end
 end
-
 function [raw_final, ex_idx] = thre_sub_num(raw_inclu, cri_num_HC, cri_num_ASD, site_col, dx_col)
 MAX_RATIO = 4; CHECK_SEX_DIV = true; SEX_COL_NAME = 'SEX';
 fprintf('   > Filtering Sites (Min Count: [%d, %d] | Max Ratio: 1:%.1f)...\n', cri_num_HC, cri_num_ASD, MAX_RATIO);
@@ -516,7 +543,6 @@ end
 ex_idx_full = [0; ex_idx]; raw_final = raw_inclu(ex_idx_full == 0, :);
 fprintf('     -> %d subjects remained.\n', size(raw_final,1)-1);
 end
-
 function [cri_type, val_header, val_cat, cri_header, cri_category, ignore_nan, valid] = parse_match_criteria(raw_data, match_cri)
 header = strtrim(raw_data(1,:)); ignore_nan = zeros(length(match_cri), 1); empty_flag = 1;
 cri_type = {}; val_header = {}; val_cat = {}; cri_header = {}; cri_category = {};
@@ -534,7 +560,6 @@ for i = 1:length(match_cri)
 end
 valid = ~empty_flag;
 end
-
 function [p_score, p_sep] = match_cal_p(cri_type, val_header, val_cat, ignore_nan)
 p_sep = zeros(length(cri_type), 1);
 for i = 1:length(cri_type)
@@ -581,7 +606,6 @@ end
 valid_p = p_sep(~isnan(p_sep)); valid_p = max(valid_p, realmin);
 if isempty(valid_p), p_score = 0; else, p_score = length(valid_p) / sum(1 ./ valid_p); end
 end
-
 function [raw_final] = match_random(raw_final, cri_type, val_header, val_cat, ignore_nan, dx_col)
 dx_col_idx = find(strcmp(raw_final(1,:), dx_col)); dx = cell2mat(raw_final(2:end, dx_col_idx));
 num_ASD = sum(dx == 1); num_HC = sum(dx == 2); diff_num = num_ASD - num_HC;
@@ -597,7 +621,6 @@ for i = 1:10000
 end
 raw_final(ex_id_best + 1, :) = [];
 end
-
 function [val_header_out, val_cat_out] = match_exclude(cri_type, val_header, val_cat, ex_id)
 val_header_out = val_header; val_cat_out = val_cat;
 if isempty(ex_id), return; end
@@ -608,7 +631,6 @@ for i = 1:length(val_cat)
     else, val_cat_out{i}(ex_id) = []; end
 end
 end
-
 function str = generate_summary(raw_final, p_sep, cri_type, cri_header, cri_category, site_col, dx_col, group_names)
 str = 'Result Summary:\n\n';
 if ~isempty(p_sep)
