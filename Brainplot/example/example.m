@@ -1,0 +1,13 @@
+x_data = rand(1,200);
+y_data = rand(1,200);
+xName = 'testx';
+yName = 'testy';
+
+[fig_handle1, fig_handle2] = plot_brain_correlation(x_data, y_data, ...
+    'AnnotLH', 'lh.Schaefer2018_200Parcels_7Networks_order.annot', 'color_x_brain', mymap('plasma'), ...
+    'AnnotRH', 'rh.Schaefer2018_200Parcels_7Networks_order.annot', 'color_y_brain', mymap('RdYlGn'), ...
+    'pVal', Pspin, 'xName', xName, 'yName', yName, 'CorrType', 'Spearman', ...
+    'X_bar_name', 'xbar', 'Y_bar_name', 'ybar', 'x_limits', [-20,220], 'y_limits', [-20,220]);
+
+exportgraphics(fig_handle1, ['Scatter_' xName '.tif'], 'Resolution', 300);
+exportgraphics(fig_handle2, ['brain_' yName '.tif'], 'Resolution', 300);
