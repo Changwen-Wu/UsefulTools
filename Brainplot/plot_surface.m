@@ -3,8 +3,8 @@ function [axes1, fig, colors] = plot_surface(beta,lh_annot,rh_annot,min_thresh, 
 [~, lh_labels, lh_colortable] = read_annotation(lh_annot);
 [~, rh_labels, rh_colortable] = read_annotation(rh_annot);
 
-lh_ind = lh_colortable.table(2:length(beta)/2+1,5);
-rh_ind = rh_colortable.table(2:length(beta)/2+1,5);
+lh_ind = lh_colortable.table(2:end,5);
+rh_ind = rh_colortable.table(2:end,5);
 
 lh_data = zeros(size(lh_labels));
 rh_data = zeros(size(rh_labels));
@@ -13,7 +13,7 @@ rh_data = zeros(size(rh_labels));
 % 遍历每个要突出显示的区域
 for i = 1:length(beta)/2
     lh_data(lh_labels == lh_ind(i)) = beta(i);
-    rh_data(rh_labels == rh_ind(i)) = beta(length(unique(lh_data))+i-1);
+    rh_data(rh_labels == rh_ind(i)) = beta(length(length(lh_ind))+i);
 end
 
 lh_data(isnan(lh_data)) = 0; rh_data(isnan(rh_data)) = 0;
