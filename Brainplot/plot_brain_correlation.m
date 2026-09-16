@@ -10,32 +10,33 @@ function [fig_handle1, fig_handle2] = plot_brain_correlation(xData, yData, varar
 %   ========================================================================
 %   可选参数 (Optional Name-Value Pair Parameters):
 %   ========================================================================
-%     'xName'       - 散点图 X 轴标签名称 (字符型, 默认: 'Variable X')。
-%                     *注: 若 CorrType='Spearman'，函数会自动前置 'Rank of xxx'
-%     'yName'       - 散点图 Y 轴标签名称 (字符型, 默认: 'Variable Y')
+%     'xName'       - 散点图 X 轴标签名称 (char, 默认: 'Variable X')。
+%                     *注: 若 CorrType='Spearman'，x/y label会变为 'Rank of xxx'
+%     'yName'       - 散点图 Y 轴标签名称 (char, 默认: 'Variable Y')
 %
-%     'X_bar_name'  - X 脑图 Colorbar 上方显示的统计量/变量名称 (字符型, 默认: 'Variable X')
-%     'Y_bar_name'  - Y 脑图 Colorbar 上方显示的统计量/变量名称 (字符型, 默认: 'Variable Y')
+%     'X_bar_name'  - X 脑图 Colorbar 上方显示的统计量/变量名称 (char, 默认: 'Variable X')
+%     'Y_bar_name'  - Y 脑图 Colorbar 上方显示的统计量/变量名称 (char, 默认: 'Variable Y')
 %
 %     'CorrType'    - 相关分析类型 ('Spearman' 或 'Pearson', 默认: 'Spearman')。
-%                     *若为 Spearman，散点图会自动转换为秩次 (tiedrank) 空间拟合。
+%                     *若为 Spearman，散点图会自动转换为秩次 (tiedrank) 。
 %
-%     'pVal'        - 手动指定的统计 p 值 (标量, 默认: []，若提供则优先使用此值)。
+%     'pVal'        - 手动指定的统计 p 值 (numeric, 默认: []，若提供则优先使用此值)。
 %
-%     'UseSpin'     - 是否使用空间旋转置换检验 (Spin Test) 计算 p 值 (逻辑型, 默认: true)。
-%     'SpinMat'     - 空间旋转置换矩阵文件路径 (字符型)。
+%     'UseSpin'     - 是否使用空间旋转置换检验 (Spin Test) 计算 p 值 (bool, 默认: true)。
+%     'SpinMat'     - 空间旋转置换矩阵文件路径 (char)。
 %                     *内部需包含 perm_id 旋转索引矩阵 (N x Num_Rotations)。
 %
-%     'AnnotLH'     - 左脑 Freesurfer 注释/图谱文件路径 (字符型)
-%     'AnnotRH'     - 右脑 Freesurfer 注释/图谱文件路径 (字符型)
+%     'AnnotLH'     - 左脑 Freesurfer 注释/图谱文件路径 (char, fsaverage)
+%     'AnnotRH'     - 右脑 Freesurfer 注释/图谱文件路径 (char, fsaverage)
 %
-%     'CLimX'       - X 脑图色彩映射上下限 [min, max] (数值向量, 默认: [min(xData), max(xData)])。
+%     'CLimX'       - X 脑图色彩映射上下限 [min, max] (numeric, 默认: [min(xData), max(xData)])。
+%     'CLimY'       - X 脑图色彩映射上下限 [min, max] (numeric, 默认: [min(yData), max(yData)])。
 %
-%     'color_x_brain'- X 脑图映射调色板 (K x 3 RGB 矩阵, 默认: flip(mymap('RdBu')))。
-%     'color_y_brain'- Y 脑图映射调色板 (K x 3 RGB 矩阵, 默认: mymap('inferno'))。
+%     'color_x_brain'- X 脑图映射调色板 (K x 3 RGB, 默认: flip(mymap('RdBu')))。
+%     'color_y_brain'- Y 脑图映射调色板 (K x 3 RGB, 默认: mymap('inferno'))。
 %
-%     'x_limits'    - 散点图 X 轴显示坐标范围 [xmin, xmax] (数值向量, 默认: [] 自适应)。
-%     'y_limits'    - 散点图 Y 轴显示坐标范围 [ymin, ymax] (数值向量, 默认: [] 自适应)。
+%     'x_limits'    - 散点图 X 轴显示坐标范围 [xmin, xmax] (numeric, 默认: [] 自适应)。
+%     'y_limits'    - 散点图 Y 轴显示坐标范围 [ymin, ymax] (numeric, 默认: [] 自适应)。
 %
 %   ========================================================================
 %   输出参数 (Output Arguments):
@@ -57,6 +58,7 @@ addParameter(p, 'SpinMat', '', @ischar);
 addParameter(p, 'AnnotLH', '', @ischar);
 addParameter(p, 'AnnotRH', '', @ischar);
 addParameter(p, 'CLimX', [], @isnumeric);
+addParameter(p, 'CLimY', [], @isnumeric);
 addParameter(p, 'color_x_brain', flip(mymap('RdBu')), @isnumeric);
 addParameter(p, 'color_y_brain', mymap('inferno'), @isnumeric);
 addParameter(p, 'x_limits', [], @isnumeric);
@@ -79,6 +81,7 @@ else
 end
 
 if isempty(opts.CLimX), opts.CLimX = [min(xData), max(xData)]; end
+if isempty(opts.CLimY), opts.CLimY = [min(yData), max(yData)]; end
 
 % 画布参数
 pic_width = 600;
@@ -107,14 +110,14 @@ set(ax_x1, 'Units', 'pixels', 'Position', [scatter_center_x - brain_w - 5, x_bra
 ax_x2 = copyobj(handles_x(2), fig_handle1);
 set(ax_x2, 'Units', 'pixels', 'Position', [scatter_center_x + 5, x_brain_y, brain_w, brain_h]);
 
-cbar_x_w = brain_w * 0.65; 
+cbar_x_w = brain_w * 0.5;
 add_horizontal_colorbar(fig_handle1, colors_x, opts.CLimX, ...
-    scatter_center_x - cbar_x_w/2, x_brain_y + 20, cbar_x_w, 8, opts.X_bar_name);
+    scatter_center_x - cbar_x_w/2, x_brain_y + 25, cbar_x_w, 8, opts.X_bar_name);
 
 if isvalid(fig_x), delete(fig_x); end
 if isvalid(axes_scatter), delete(axes_scatter); end
 
-fig_handle2 = plot_single_brain_map(yData, opts.Y_bar_name, opts.AnnotLH, opts.AnnotRH, opts.color_y_brain);
+fig_handle2 = plot_single_brain_map(yData, opts.Y_bar_name, opts.AnnotLH, opts.AnnotRH, opts.color_y_brain, 'Clim', opts.CLimY);
 
 end
 
@@ -145,9 +148,9 @@ set(ax_y1, 'Units', 'pixels', 'Position', [center_x - brain_w - 5, brain_y, brai
 ax_y2 = copyobj(handles_y(2), fig_single);
 set(ax_y2, 'Units', 'pixels', 'Position', [center_x + 5, brain_y, brain_w, brain_h]);
 
-cbar_w = brain_w * 0.65;
+cbar_w = brain_w * 0.5;
 add_horizontal_colorbar(fig_single, colors_y, opts.CLim, ...
-    center_x - cbar_w/2, brain_y + 20, cbar_w, 8, labelName);
+    center_x - cbar_w/2, brain_y + 25, cbar_w, 8, labelName);
 
 if isvalid(fig_temp), delete(fig_temp); end
 end
@@ -165,11 +168,17 @@ function add_horizontal_colorbar(parent_fig, colors, c_limits, pos_x, pos_y, wid
     clim(c_limits);
     
     % 数字放在 Bar 两端
+    if (c_limits(2)-c_limits(1))>0.1
     text(pos_x - 5, pos_y + height/2, num2str(c_limits(1), '%.2f'), 'FontName', 'Arial', 'FontSize', 8, ...
         'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
     text(pos_x + width + 5, pos_y + height/2, num2str(c_limits(2), '%.2f'), 'FontName', 'Arial', 'FontSize', 8, ...
         'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
-    
+    else
+        text(pos_x - 5, pos_y + height/2, num2str(c_limits(1), '%.3f'), 'FontName', 'Arial', 'FontSize', 8, ...
+            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
+        text(pos_x + width + 5, pos_y + height/2, num2str(c_limits(2), '%.3f'), 'FontName', 'Arial', 'FontSize', 8, ...
+            'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
+    end
     % 名称放在 Bar 正上方 (pos_y + height)
     text(pos_x + width/2, pos_y + height, label_title, 'FontName', 'Arial', 'FontSize', 7, 'FontWeight', 'bold', ...
         'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Parent', cbar_axes, 'Units', 'pixels');
@@ -249,11 +258,11 @@ fill(axesHandle, [fitX; flipud(fitX)], ...
 hold(axesHandle, 'on');
 
 scatter(axesHandle, sortedX, sortedY, 25, 'filled', ...
-    'MarkerFaceColor', [71 150 200] / 255, ...
-    'MarkerEdgeColor', 'w', ...
-    'LineWidth', 0.5);
+    'MarkerFaceColor', [147 187 219] / 255, ...
+    'MarkerEdgeColor', [89 93 161] / 255, ...
+    'LineWidth', 1);
 
-plot(axesHandle, fitX, predictedY, 'Color', [239 109 33] / 255, 'LineWidth', 2);
+plot(axesHandle, fitX, predictedY, 'Color', [204 69 72] / 255, 'LineWidth', 2);
 
 if p < 0.001
     title_str = sprintf('%s = %.3f, {\\itp} < 0.001', stat_symbol, r);
