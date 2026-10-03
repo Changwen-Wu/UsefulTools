@@ -1,48 +1,7 @@
-function [fig_handle1, fig_handle2] = plot_brain_correlation(xData, yData, varargin)
-%   接收两个脑区向量 XDATA 和 YDATA，绘制散点图、X 变量皮层脑图及 Y 变量单脑图。
-%
-%   ========================================================================
-%   输入参数 (Required Input Arguments):
-%   ========================================================================
-%     xData      - 脑区数据向量 X (N x 1 或 1 x N 向量, N 为脑区数量)
-%     yData      - 脑区数据向量 Y (N x 1 或 1 x N 向量)
-%
-%   ========================================================================
-%   可选参数 (Optional Name-Value Pair Parameters):
-%   ========================================================================
-%     'xName'       - 散点图 X 轴标签名称 (char, 默认: 'Variable X')。
-%                     *注: 若 CorrType='Spearman'，x/y label会变为 'Rank of xxx'
-%     'yName'       - 散点图 Y 轴标签名称 (char, 默认: 'Variable Y')
-%
-%     'X_bar_name'  - X 脑图 Colorbar 上方显示的统计量/变量名称 (char, 默认: 'Variable X')
-%     'Y_bar_name'  - Y 脑图 Colorbar 上方显示的统计量/变量名称 (char, 默认: 'Variable Y')
-%
-%     'CorrType'    - 相关分析类型 ('Spearman' 或 'Pearson', 默认: 'Spearman')。
-%                     *若为 Spearman，散点图会自动转换为秩次 (tiedrank) 。
-%
-%     'pVal'        - 手动指定的统计 p 值 (numeric, 默认: []，若提供则优先使用此值)。
-%
-%     'UseSpin'     - 是否使用空间旋转置换检验 (Spin Test) 计算 p 值 (bool, 默认: true)。
-%     'SpinMat'     - 空间旋转置换矩阵文件路径 (char)。
-%                     *内部需包含 perm_id 旋转索引矩阵 (N x Num_Rotations)。
-%
-%     'AnnotLH'     - 左脑 Freesurfer 注释/图谱文件路径 (char, fsaverage)
-%     'AnnotRH'     - 右脑 Freesurfer 注释/图谱文件路径 (char, fsaverage)
-%
-%     'CLimX'       - X 脑图色彩映射上下限 [min, max] (numeric, 默认: [min(xData), max(xData)])。
-%     'CLimY'       - X 脑图色彩映射上下限 [min, max] (numeric, 默认: [min(yData), max(yData)])。
-%
-%     'color_x_brain'- X 脑图映射调色板 (K x 3 RGB, 默认: flip(mymap('RdBu')))。
-%     'color_y_brain'- Y 脑图映射调色板 (K x 3 RGB, 默认: mymap('inferno'))。
-%
-%     'x_limits'    - 散点图 X 轴显示坐标范围 [xmin, xmax] (numeric, 默认: [] 自适应)。
-%     'y_limits'    - 散点图 Y 轴显示坐标范围 [ymin, ymax] (numeric, 默认: [] 自适应)。
-%
-%   ========================================================================
-%   输出参数 (Output Arguments):
-%   ========================================================================
-%     fig_handle1  - 组合图窗句柄，包含散点拟合图与 X 变量脑图及 Colorbar。
-%     fig_handle2  - 单独 Y 变量脑图及 Colorbar 的图窗句柄。
+function [fig_handle1, fig_handle2, fig_quad] = plot_brain_correlation(xData, yData, varargin)
+%   接收两个脑区向量 XDATA 和 YDATA，绘制散点图、X 变量皮层脑图、Y 变量双视角脑图及 Y 变量四视角(2x2)脑图。
+%   输出参数:
+%      fig_quad - 包含 4 个视角 (第一排: 左外/右外; 第二排: 左内/右内) 的 2x2 脑图图窗句柄
 
 p = inputParser;
 addRequired(p, 'xData', @isnumeric);
@@ -63,11 +22,20 @@ addParameter(p, 'color_x_brain', flip(mymap('RdBu')), @isnumeric);
 addParameter(p, 'color_y_brain', mymap('inferno'), @isnumeric);
 addParameter(p, 'x_limits', [], @isnumeric);
 addParameter(p, 'y_limits', [], @isnumeric);
+addParameter(p, 'pic_width', 8, @(x) isnumeric(x) && isscalar(x));
 
 parse(p, xData, yData, varargin{:});
 opts = p.Results;
+opts.pic_height = opts.pic_width*11/8.5;
 xData = xData(:);
 yData = yData(:);
+
+scale_factor = opts.pic_width / 8.5;
+
+% 所有视觉样式参数均挂钩 scale_factor
+font_label = 9 * scale_factor;      % 轴标签与 Title 字号
+font_tick  = 7.5 * scale_factor;    % 刻度与 Colorbar 数字字号
+line_width = 0.8 * scale_factor;    % 坐标轴与线条宽度
 
 % p 值获取
 if ~isempty(opts.pVal)
@@ -83,105 +51,207 @@ end
 if isempty(opts.CLimX), opts.CLimX = [min(xData), max(xData)]; end
 if isempty(opts.CLimY), opts.CLimY = [min(yData), max(yData)]; end
 
-% 画布参数
-pic_width = 600;
-pic_height = 650;
-fig_handle1 = figure('Position', [200, 100, pic_width, pic_height], 'Color', 'w');
+% --- 图窗画布参数设置 ---
+fig_handle1 = figure('Color', 'w', ...
+    'Units', 'centimeters', 'Position', [2, 2, opts.pic_width, opts.pic_height], ...
+    'PaperUnits', 'centimeters', 'PaperSize', [opts.pic_width, opts.pic_height], ...
+    'PaperPosition', [0, 0, opts.pic_width, opts.pic_height]);
 
-scatter_w = 320; scatter_h = 320;
-scatter_left = 180; scatter_bottom = 240;  
-brain_w = 110; brain_h = brain_w * 1.35;
+% --- 组件尺寸与位置全局挂钩算式 ---
+% 散点图尺寸 (基准下 X 轴长 6 cm，高度比例联动)
+scatter_w      = 6.0 * scale_factor; 
+scatter_h      = 6.0 * (opts.pic_height / 11.0); % 高度按高度比例缩放
+scatter_left   = 2.2 * scale_factor; 
+scatter_bottom = 4.2 * (opts.pic_height / 11.0);  
 
-% 1. 散点图
+brain_w = 2.6 * scale_factor; 
+brain_h = brain_w * 1.35;
+
+% 1. 散点图绘制与定位
 [~, axes_scatter] = scatter_plot(xData, yData, opts.CorrType, {opts.xName, opts.yName}, ...
-    'pVal', final_p, 'x_limits', opts.x_limits, 'y_limits', opts.y_limits);
-new_axes = copyobj(axes_scatter, fig_handle1);
-set(new_axes, 'Units', 'pixels', 'Position', [scatter_left, scatter_bottom, scatter_w, scatter_h]);
+    'pVal', final_p, 'x_limits', opts.x_limits, 'y_limits', opts.y_limits, ...
+    'font_label', font_label, 'font_tick', font_tick, 'line_width', line_width);
 
-% 2. X 轴脑图 (向上靠近散点图 X 轴)
+new_axes = copyobj(axes_scatter, fig_handle1);
+set(new_axes, 'Units', 'centimeters', 'Position', [scatter_left, scatter_bottom, scatter_w, scatter_h]);
+
+% 2. X 轴脑图定位 (相对位置按比例联动)
 scatter_center_x = scatter_left + scatter_w / 2;
-x_brain_y = scatter_bottom - brain_h - 15;
+x_brain_y        = scatter_bottom - brain_h - (0 * scale_factor);
 
 [handles_x, fig_x, colors_x] = plot_surface(xData, opts.AnnotLH, opts.AnnotRH, opts.CLimX(1), opts.CLimX(2), opts.color_x_brain);
 
 ax_x1 = copyobj(handles_x(4), fig_handle1);
-set(ax_x1, 'Units', 'pixels', 'Position', [scatter_center_x - brain_w - 5, x_brain_y, brain_w, brain_h]);
+set(ax_x1, 'Units', 'centimeters', ...
+    'Position', [scatter_center_x - brain_w - (0.1 * scale_factor), x_brain_y, brain_w, brain_h]);
 
 ax_x2 = copyobj(handles_x(2), fig_handle1);
-set(ax_x2, 'Units', 'pixels', 'Position', [scatter_center_x + 5, x_brain_y, brain_w, brain_h]);
+set(ax_x2, 'Units', 'centimeters', ...
+    'Position', [scatter_center_x + (0.1 * scale_factor), x_brain_y, brain_w, brain_h]);
 
 cbar_x_w = brain_w * 0.5;
 add_horizontal_colorbar(fig_handle1, colors_x, opts.CLimX, ...
-    scatter_center_x - cbar_x_w/2, x_brain_y + 25, cbar_x_w, 8, opts.X_bar_name);
+    scatter_center_x - cbar_x_w/2, x_brain_y + (0.7 * scale_factor), cbar_x_w, 0.2 * scale_factor, opts.X_bar_name, font_tick);
 
 if isvalid(fig_x), delete(fig_x); end
 if isvalid(axes_scatter), delete(axes_scatter); end
 
-fig_handle2 = plot_single_brain_map(yData, opts.Y_bar_name, opts.AnnotLH, opts.AnnotRH, opts.color_y_brain, 'Clim', opts.CLimY);
+% 3. 生成单独的 Y 变量脑图 (双视角)
+fig_handle2 = plot_single_brain_map(yData, opts.Y_bar_name, opts.AnnotLH, opts.AnnotRH, opts.color_y_brain, ...
+    'Clim', opts.CLimY, 'scale_factor', scale_factor);
+
+% 4. 生成单独的 Y 变量脑图 (四视角 2x2: 第一排 左外/右外，第二排 左内/右内)
+fig_quad = plot_quad_brain_map(yData, opts.Y_bar_name, opts.AnnotLH, opts.AnnotRH, opts.color_y_brain, ...
+    'Clim', opts.CLimY, 'scale_factor', scale_factor);
 
 end
 
+
+%% ===== 双脑图绘制函数 (挂钩 scale_factor) =====
 function fig_single = plot_single_brain_map(brainData, labelName, AnnotLH, AnnotRH, color_y_brain, varargin)
 p = inputParser;
 addRequired(p, 'brainData', @isnumeric);
 addRequired(p, 'labelName', @ischar);
 addParameter(p, 'CLim', [], @isnumeric);
+addParameter(p, 'scale_factor', 1.0, @isnumeric);
 
 parse(p, brainData, labelName, varargin{:});
 opts = p.Results;
 
+sf = opts.scale_factor;
+font_tick = 7.5 * sf;
+
 brainData = brainData(:);
 if isempty(opts.CLim), opts.CLim = [min(brainData), max(brainData)]; end
 
-fig_w = 400; fig_h = 280;
-fig_single = figure('Position', [100, 100, fig_w, fig_h], 'Color', 'w');
+fig_w = 7.0 * sf; 
+fig_h = 5.0 * sf;
 
-brain_w = 110; brain_h = brain_w * 1.35;
+fig_single = figure('Color', 'w', ...
+    'Units', 'centimeters', 'Position', [2, 2, fig_w, fig_h], ...
+    'PaperUnits', 'centimeters', 'PaperSize', [fig_w, fig_h], ...
+    'PaperPosition', [0, 0, fig_w, fig_h]);
+
+brain_w = 2.6 * sf; 
+brain_h = brain_w * 1.35;
 center_x = fig_w / 2;
-brain_y = 80;
+brain_y = 1.2 * sf;
 
 [handles_y, fig_temp, colors_y] = plot_surface(brainData, AnnotLH, AnnotRH, opts.CLim(1), opts.CLim(2), color_y_brain);
 
 ax_y1 = copyobj(handles_y(4), fig_single);
-set(ax_y1, 'Units', 'pixels', 'Position', [center_x - brain_w - 5, brain_y, brain_w, brain_h]);
+set(ax_y1, 'Units', 'centimeters', 'Position', [center_x - brain_w - (0.1 * sf), brain_y, brain_w, brain_h]);
 
 ax_y2 = copyobj(handles_y(2), fig_single);
-set(ax_y2, 'Units', 'pixels', 'Position', [center_x + 5, brain_y, brain_w, brain_h]);
+set(ax_y2, 'Units', 'centimeters', 'Position', [center_x + (0.1 * sf), brain_y, brain_w, brain_h]);
 
 cbar_w = brain_w * 0.5;
 add_horizontal_colorbar(fig_single, colors_y, opts.CLim, ...
-    center_x - cbar_w/2, brain_y + 25, cbar_w, 8, labelName);
+    center_x - cbar_w/2, brain_y + (0.7 * sf), cbar_w, 0.2 * sf, labelName, font_tick);
+
+if isvalid(fig_temp), delete(fig_temp); end
+end
+
+
+%% ===== 四脑图绘制函数 (2x2 排列: 第一排左外/右外，第二排左内/右内) =====
+function fig_quad = plot_quad_brain_map(brainData, labelName, AnnotLH, AnnotRH, color_y_brain, varargin)
+p = inputParser;
+addRequired(p, 'brainData', @isnumeric);
+addRequired(p, 'labelName', @ischar);
+addParameter(p, 'CLim', [], @isnumeric);
+addParameter(p, 'scale_factor', 1.0, @isnumeric);
+
+parse(p, brainData, labelName, varargin{:});
+opts = p.Results;
+
+sf = opts.scale_factor;
+font_tick = 7.5 * sf;
+
+brainData = brainData(:);
+if isempty(opts.CLim), opts.CLim = [min(brainData), max(brainData)]; end
+
+% 适配 2x2 排列的画布高宽
+fig_w = 7.0 * sf; 
+fig_h = 8.0 * sf;
+
+fig_quad = figure('Color', 'w', ...
+    'Units', 'centimeters', 'Position', [2, 2, fig_w, fig_h], ...
+    'PaperUnits', 'centimeters', 'PaperSize', [fig_w, fig_h], ...
+    'PaperPosition', [0, 0, fig_w, fig_h]);
+
+brain_w = 2.6 * sf; 
+brain_h = brain_w * 1.35;
+spacing_x = 0.1 * sf;
+spacing_y = 0.1 * sf;
+
+center_x = fig_w / 2;
+
+% 计算两排脑图的 y 轴坐标
+% 第二排（下层: 左内, 右内）y 位置
+row2_y = 1.2 * sf; 
+% 第一排（上层: 左外, 右外）y 位置
+row1_y = row2_y + brain_h*0.55;
+
+% plot_surface 返回句柄映射顺序: 1:LH_med, 2:RH_lat, 3:RH_med, 4:LH_lat
+[handles_y, fig_temp, colors_y] = plot_surface(brainData, AnnotLH, AnnotRH, opts.CLim(1), opts.CLim(2), color_y_brain);
+
+% --- 第一排：左外 (LH_lat: 4) , 右外 (RH_lat: 2) ---
+ax_r1_c1 = copyobj(handles_y(4), fig_quad);
+set(ax_r1_c1, 'Units', 'centimeters', 'Position', [center_x - brain_w - spacing_x, row1_y, brain_w, brain_h]);
+
+ax_r1_c2 = copyobj(handles_y(2), fig_quad);
+set(ax_r1_c2, 'Units', 'centimeters', 'Position', [center_x + spacing_x, row1_y, brain_w, brain_h]);
+
+% --- 第二排：左内 (LH_med: 1) , 右内 (RH_med: 3) ---
+ax_r2_c1 = copyobj(handles_y(1), fig_quad);
+set(ax_r2_c1, 'Units', 'centimeters', 'Position', [center_x - brain_w - spacing_x, row2_y, brain_w, brain_h]);
+
+ax_r2_c2 = copyobj(handles_y(3), fig_quad);
+set(ax_r2_c2, 'Units', 'centimeters', 'Position', [center_x + spacing_x, row2_y, brain_w, brain_h]);
+
+% Colorbar 居中放置在第二排下侧
+cbar_w = brain_w * 0.6;
+add_horizontal_colorbar(fig_quad, colors_y, opts.CLim, ...
+    center_x - cbar_w/2, row2_y + (0.7 * sf), cbar_w, 0.2 * sf, labelName, font_tick);
 
 if isvalid(fig_temp), delete(fig_temp); end
 end
 
 
 %% ===== Colorbar 绘制辅助函数 =====
-function add_horizontal_colorbar(parent_fig, colors, c_limits, pos_x, pos_y, width, height, label_title)
-    cbar_axes = axes('Position', [0, 0, 1, 1], 'Visible', 'off', 'Parent', parent_fig);
+function add_horizontal_colorbar(parent_fig, colors, c_limits, pos_x, pos_y, width, height, label_title, font_tick)
+    cbar_axes = axes('Parent', parent_fig, 'Units', 'centimeters', 'Position', [0, 0, 1, 1], 'Visible', 'off');
     colors([1, end], :) = []; 
     colormap(cbar_axes, colors);
     
-    c = colorbar(cbar_axes, 'Units', 'pixels', 'Position', [pos_x, pos_y, width, height], ...
+    c = colorbar(cbar_axes, 'Units', 'centimeters', 'Position', [pos_x, pos_y, width, height], ...
         'Orientation', 'horizontal');
     set(c, 'Ticks', [], 'TickLabels', {});
-    clim(c_limits);
+    clim(cbar_axes, c_limits);
     
     % 数字放在 Bar 两端
-    if (c_limits(2)-c_limits(1))>0.1
-    text(pos_x - 5, pos_y + height/2, num2str(c_limits(1), '%.2f'), 'FontName', 'Arial', 'FontSize', 8, ...
-        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
-    text(pos_x + width + 5, pos_y + height/2, num2str(c_limits(2), '%.2f'), 'FontName', 'Arial', 'FontSize', 8, ...
-        'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
+    if and((c_limits(2)-c_limits(1)) > 0.1, ((c_limits(2)-c_limits(1))<10))
+        str_min = sprintf('%.2f', c_limits(1));
+        str_max = sprintf('%.2f', c_limits(2));
+    elseif (c_limits(2)-c_limits(1))>10
+        str_min = sprintf('%.1f', c_limits(1));
+        str_max = sprintf('%.1f', c_limits(2));
     else
-        text(pos_x - 5, pos_y + height/2, num2str(c_limits(1), '%.3f'), 'FontName', 'Arial', 'FontSize', 8, ...
-            'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
-        text(pos_x + width + 5, pos_y + height/2, num2str(c_limits(2), '%.3f'), 'FontName', 'Arial', 'FontSize', 8, ...
-            'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Parent', cbar_axes, 'Units', 'pixels');
+        str_min = sprintf('%.3f', c_limits(1));
+        str_max = sprintf('%.3f', c_limits(2));
     end
-    % 名称放在 Bar 正上方 (pos_y + height)
-    text(pos_x + width/2, pos_y + height, label_title, 'FontName', 'Arial', 'FontSize', 7, 'FontWeight', 'bold', ...
-        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Parent', cbar_axes, 'Units', 'pixels');
+    
+    % 文本偏移量随字体大小动态微调
+    offset_x = width * 0.05;
+    offset_y = height * 0.5;
+    
+    text(cbar_axes, pos_x - 0.7*offset_x, pos_y + height/2, str_min, 'FontName', 'Arial', 'FontSize', font_tick, ...
+        'HorizontalAlignment', 'right', 'VerticalAlignment', 'middle', 'Units', 'centimeters');
+    text(cbar_axes, pos_x + width + offset_x*1.2, pos_y + height/2, str_max, 'FontName', 'Arial', 'FontSize', font_tick, ...
+        'HorizontalAlignment', 'left', 'VerticalAlignment', 'middle', 'Units', 'centimeters');
+    % 名称放在 Bar 正下方
+    text(cbar_axes, pos_x + width/2, pos_y - height - offset_y, label_title, 'FontName', 'Arial', 'FontSize', font_tick, ...
+        'HorizontalAlignment', 'center', 'VerticalAlignment', 'bottom', 'Units', 'centimeters');
 end
 
 
@@ -193,10 +263,13 @@ addRequired(p_parser, 'yData', @isnumeric);
 addRequired(p_parser, 'correlationType', @ischar);
 addRequired(p_parser, 'Scatter_label', @(x) iscell(x) || ischar(x));
 addParameter(p_parser, 'pVal', [], @(x) isempty(x) || (isnumeric(x) && isscalar(x)));
-addParameter(p_parser, 'SpinMat', 'Data\Spin_rotation\Schaefer400_rotation.mat', @ischar);
+addParameter(p_parser, 'SpinMat', '', @ischar);
 addParameter(p_parser, 'UseSpin', false, @islogical);
 addParameter(p_parser, 'x_limits', [], @isnumeric);
 addParameter(p_parser, 'y_limits', [], @isnumeric);
+addParameter(p_parser, 'font_label', 9, @isnumeric);
+addParameter(p_parser, 'font_tick', 7.5, @isnumeric);
+addParameter(p_parser, 'line_width', 0.8, @isnumeric);
 
 parse(p_parser, xData, yData, correlationType, Scatter_label, varargin{:});
 opts = p_parser.Results;
@@ -212,11 +285,7 @@ if ~isempty(opts.pVal)
     p = opts.pVal;
 elseif opts.UseSpin && isfile(opts.SpinMat)
     spin_data = load(opts.SpinMat);
-    if isfield(spin_data, 'perm_id')
-        perm_id = spin_data.perm_id;
-    else
-        perm_id = struct2array(spin_data);
-    end
+    perm_id = spin_data.perm_id;
     p = perm_sphere_p_wcw(xData, yData, perm_id, correlationType);
 else
     [~, p] = corr(xData, yData, 'Type', correlationType);
@@ -249,7 +318,7 @@ sortedY = plotY(sortIdx);
 fitX = linspace(min(sortedX), max(sortedX), 200)';
 [predictedY, predInterval] = polyconf(polyCoeff, fitX, fitStats, 'predopt', 'curve');
 
-figureHandle = figure('Color', 'w');
+figureHandle = figure('Color', 'w', 'Units', 'centimeters');
 axesHandle = axes('Parent', figureHandle);
 
 fill(axesHandle, [fitX; flipud(fitX)], ...
@@ -257,12 +326,13 @@ fill(axesHandle, [fitX; flipud(fitX)], ...
     [231 231 231] / 255, 'FaceAlpha', 0.8, 'EdgeColor', 'none');
 hold(axesHandle, 'on');
 
-scatter(axesHandle, sortedX, sortedY, 25, 'filled', ...
+% 散点 Marker 大小也随 linewidth 适度联动
+scatter(axesHandle, sortedX, sortedY, 20 * (opts.line_width/0.8)^2, 'filled', ...
     'MarkerFaceColor', [147 187 219] / 255, ...
     'MarkerEdgeColor', [89 93 161] / 255, ...
-    'LineWidth', 1);
+    'LineWidth', opts.line_width * 0.8);
 
-plot(axesHandle, fitX, predictedY, 'Color', [204 69 72] / 255, 'LineWidth', 2);
+plot(axesHandle, fitX, predictedY, 'Color', [204 69 72] / 255, 'LineWidth', opts.line_width * 2);
 
 if p < 0.001
     title_str = sprintf('%s = %.3f, {\\itp} < 0.001', stat_symbol, r);
@@ -270,19 +340,18 @@ else
     title_str = sprintf('%s = %.3f, {\\itp} = %.3f', stat_symbol, r, p);
 end
 
-% 加上 'Interpreter', 'tex' 就能正常渲染出斜体希腊字母 ρ 和斜体 p
-title(axesHandle, title_str, 'FontName', 'Arial', 'FontSize', 11, 'FontWeight', 'normal', 'Interpreter', 'tex');
+title(axesHandle, title_str, 'FontName', 'Arial', 'FontSize', opts.font_label, ...
+    'FontWeight', 'normal', 'Interpreter', 'tex');
 
 if iscell(Scatter_label)
-    xlabel(axesHandle, Scatter_label{1}, 'FontName', 'Arial', 'FontSize', 11);
-    ylabel(axesHandle, Scatter_label{2}, 'FontName', 'Arial', 'FontSize', 11);
+    xlabel(axesHandle, Scatter_label{1}, 'FontName', 'Arial', 'FontSize', opts.font_label);
+    ylabel(axesHandle, Scatter_label{2}, 'FontName', 'Arial', 'FontSize', opts.font_label);
 end
 
-% 计算 Limit：Spearman 取 [min, max]
+% 坐标轴范围计算
 if isempty(opts.x_limits)
     if strcmpi(correlationType, 'Spearman')
         x_limits = [min(sortedX)-1, max(sortedX)];
-
     else
         x_range = max(sortedX) - min(sortedX);
         x_limits = [min(sortedX) - 0.08 * x_range, max(sortedX) + 0.08 * x_range];
@@ -302,19 +371,16 @@ else
     y_limits = opts.y_limits;
 end
 
-
-
 set(axesHandle, ...
     'XLim', x_limits, ...
     'YLim', y_limits, ...
     'XTick', linspace(x_limits(1), x_limits(2), 6), ...
     'YTick', linspace(y_limits(1), y_limits(2), 6), ...
     'FontName', 'Arial', ...
-    'FontSize', 10, ...
-    'LineWidth', 1, ...
-    'TickDir', 'none', ...
+    'FontSize', opts.font_tick, ...
+    'LineWidth', opts.line_width, ...
+    'TickDir', 'out', ...
     'Box', 'off');
-
 
 if strcmpi(correlationType, 'Spearman')
     xtickformat(axesHandle, '%d');

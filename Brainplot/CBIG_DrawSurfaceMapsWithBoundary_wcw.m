@@ -109,6 +109,9 @@ for hemis = {'lh' 'rh'}
         end
     end
 
+    meshvec = (data == 0);
+    mesh_color = [220 220 220]/255;
+
     % threshold
     if(exist('min_thresh', 'var'))
         data(data < min_thresh) = min_thresh;
@@ -130,11 +133,9 @@ for hemis = {'lh' 'rh'}
             end
         end
     end
-    data(data == 0) = min_thresh;
-    meshvec = (data == 0);
 
     boundary_color = [0, 0, 0];
-    mesh_color = [220 220 220]/255;
+
     
     % draw
     if(strcmp(hemi, 'lh'))
@@ -147,10 +148,7 @@ for hemis = {'lh' 'rh'}
         ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
         ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
         ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
-        
-        ncd(meshvec == 1, 1, 1) = mesh_color(1);
-        ncd(meshvec == 1, 1, 2) = mesh_color(2);
-        ncd(meshvec == 1, 1, 3) = mesh_color(3);       
+   
 
         s.CData = ncd;
         view(-90, 0);
@@ -165,6 +163,11 @@ for hemis = {'lh' 'rh'}
         ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
         ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
         ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+
+        % 强制将所有底板顶点的 RGB 颜色替换为固定颜色
+        ncd(meshvec == 1, 1, 1) = mesh_color(1);
+        ncd(meshvec == 1, 1, 2) = mesh_color(2);
+        ncd(meshvec == 1, 1, 3) = mesh_color(3);    
 
         s.CData = ncd;
         view(90, 0);
@@ -223,6 +226,11 @@ for hemis = {'lh' 'rh'}
         ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
         ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
         ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        
+        % 强制将所有底板顶点的 RGB 颜色替换为固定颜色
+        ncd(meshvec == 1, 1, 1) = mesh_color(1);
+        ncd(meshvec == 1, 1, 2) = mesh_color(2);
+        ncd(meshvec == 1, 1, 3) = mesh_color(3);
 
         s.CData = ncd;
         view(-90, 0);
@@ -260,14 +268,14 @@ end
 
 
 
-if(exist('min_thresh', 'var'))
-    cbax = axes('Position', [0.29 0.5 0.1 0.02], 'visible', 'off');
-    data = [lh_data; rh_data];
-    data(data < min_thresh) = min_thresh;
-    data(data > max_thresh) = max_thresh;
-    caxis(cbax, [min_thresh, max_thresh]);
-    colorbar('peer', cbax, 'horiz', 'Position', [0.29 0.5 0.1 0.02]);
-end
+% if(exist('min_thresh', 'var'))
+%     cbax = axes('Position', [0.29 0.5 0.1 0.02], 'visible', 'off');
+%     data = [lh_data; rh_data];
+%     data(data < min_thresh) = min_thresh;
+%     data(data > max_thresh) = max_thresh;
+%     caxis(cbax, [min_thresh, max_thresh]);
+%     colorbar('peer', cbax, 'horiz', 'Position', [0.29 0.5 0.1 0.02]);
+% end
 
 end
 

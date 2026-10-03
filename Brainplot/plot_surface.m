@@ -1,5 +1,7 @@
 function [axes1, fig, colors] = plot_surface(beta,lh_annot,rh_annot,min_thresh, max_thresh, colors)
 
+beta(beta==0)= beta(beta==0)+0.001*(max(beta)-min(beta));
+
 [~, lh_labels, lh_colortable] = read_annotation(lh_annot);
 [~, rh_labels, rh_colortable] = read_annotation(rh_annot);
 
@@ -33,8 +35,8 @@ CBIG_DrawSurfaceMapsWithBoundary_wcw(lh_data, rh_data, lh_labels, rh_labels, ...
     'fsaverage', 'inflated', min_thresh, max_thresh, colors);
 
 all_axes = findobj(gcf, 'Type', 'axes');
-axes1 = all_axes([4,5,8,9]);
-% axes2 = all_axes([2,3,6,7]);
+axes1 = all_axes([3,4,7,8]);
+% axes2 = all_axes([1,2,5,6]);
 fig = gcf;
 
 
