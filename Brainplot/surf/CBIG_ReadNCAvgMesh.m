@@ -36,7 +36,6 @@ parms.surf_filename = 'sphere';
 %% amend by wcw
 toolbox_root = MyToolbox_Path(); 
 parms.SUBJECTS_DIR = fullfile(toolbox_root, 'Parcellations', 'FreeSurfer5.3');
-parms.surf_filename = 'inflated';
 %%
 parms.metric_surf_filename = surf_type;
 parms.data_filename_cell = {'sulc', 'curv'};
