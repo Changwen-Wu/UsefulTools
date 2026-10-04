@@ -153,6 +153,8 @@ for hemis = {'lh' 'rh'}
         s.CData = ncd;
         view(-90, 0);
         axis off;
+        apply_3d_render_style(s);
+        
 
         subplot('Position', pos(2, :));
         s = TrisurfMeshData(mesh, data);
@@ -171,7 +173,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, 0);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
         subplot('Position', pos(3, :));
         s = TrisurfMeshData(mesh, data);
@@ -185,7 +188,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, 90);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
         subplot('Position', pos(8, :));
         s = TrisurfMeshData(mesh, data);
@@ -199,7 +203,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, -90);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
     else
 
@@ -215,7 +220,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, 0);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
         subplot('Position', pos(6, :));
         s = TrisurfMeshData(mesh, data);
@@ -234,7 +240,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(-90, 0);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
         subplot('Position', pos(4, :));
         s = TrisurfMeshData(mesh, data);
@@ -248,7 +255,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, 90);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
 
         subplot('Position', pos(7, :));
         s = TrisurfMeshData(mesh, data);
@@ -262,7 +270,8 @@ for hemis = {'lh' 'rh'}
 
         s.CData = ncd;
         view(90, -90);
-        axis off;
+        axis off;        
+        apply_3d_render_style(s);
     end
 end
 
@@ -298,4 +307,22 @@ for x = 1: length(cdat)
         ncd(x, y, 1: 3) = m(round(idxf(x, y)) + 1, :);
     end
 end
+end
+
+function apply_3d_render_style(patch_handle)
+% 赋予大脑 Patch 对象真实的 3D 立体感与自然质感
+
+axis vis3d;           % 固定三维高宽比，旋转或视角改变时不发生扭曲
+lighting gouraud;     % 开启高罗德平滑光照
+material dull;        % 设置哑光生物材质 (漫反射强、高光自然)
+
+% 挂载方向随相机移动的跟随光源
+camlight('headlight');
+
+% 调整环境光与高光控制，防止暗部过黑或亮点曝光
+set(patch_handle, ...
+    'SpecularExponent', 15, ...  % 高光发散度
+    'SpecularStrength', 0.1, ... % 弱镜面反射 (避免像塑料)
+    'DiffuseStrength',  0.8, ... % 强漫反射 (展现立体折射)
+    'AmbientStrength',  0.4);    % 环境光 (充实凹陷阴影)
 end
