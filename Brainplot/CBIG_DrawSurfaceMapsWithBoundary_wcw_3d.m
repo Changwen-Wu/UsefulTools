@@ -1,0 +1,229 @@
+function CBIG_DrawSurfaceMapsWithBoundary_wcw_3d(lh_data, rh_data, ...
+    lh_labels, rh_labels, mesh_name, surf_type, min_thresh, max_thresh, colors)
+% CBIG_DrawSurfaceMapsWithBoundary_wcw
+% 已加入 3D 立体光照与材质渲染逻辑 (Light & Material)
+
+warning('off', 'MATLAB:warn_r14_stucture_assignment');
+if(~exist('mesh_name', 'var'))
+    mesh_name = 'fsaverage';
+end
+if(~exist('surf_type', 'var'))
+    surf_type = 'inflated';
+end
+
+pos = [0.020, 0.510, 0.325, 0.470;...
+    0.355, 0.510, 0.325, 0.470;...
+    0.720, 0.760, 0.240, 0.230;...
+    0.720, 0.510, 0.240, 0.230;...
+    0.020, 0.020, 0.325, 0.470;...
+    0.355, 0.020, 0.325, 0.470;...
+    0.720, 0.260, 0.240, 0.230;...
+    0.720, 0.010, 0.240, 0.230];
+
+h = figure; gpos = get(h, 'Position');
+gpos(1) = 0; gpos(2) = 0; gpos(3) = 1200; gpos(4) = 600; set(h, 'Position', gpos);
+
+if(exist('colors', 'var'))
+    m = colors;
+    colormap(m);
+else
+    m = jet;
+    colormap(m);
+end
+
+for hemis = {'lh' 'rh'}
+    hemi = hemis{1};
+    mesh = CBIG_ReadNCAvgMesh(hemi, mesh_name, surf_type, 'cortex');
+    non_cortex = find(mesh.MARS_label == 1);
+    
+    if(strcmp(hemi, 'lh'))
+        data   = lh_data;
+        labels = lh_labels;
+    elseif(strcmp(hemi, 'rh'))
+        data   = rh_data;
+        labels = rh_labels;
+    end
+    
+    % convert to row vector
+    if(size(data, 1) ~= 1),   data = data';     end
+    if(size(labels, 1) ~= 1), labels = labels'; end
+    
+    % resample
+    if(size(mesh.vertices, 2) ~= length(data))
+        if(length(data) == 10242)
+            from_mesh = CBIG_ReadNCAvgMesh(hemi, 'fsaverage5', 'sphere', 'cortex');
+            target_mesh = CBIG_ReadNCAvgMesh(hemi, mesh_name, 'sphere', 'cortex');
+            data   = MARS_linearInterpolate(target_mesh.vertices, from_mesh, data);
+            labels = MARS_NNInterpolate(target_mesh.vertices, from_mesh, labels);
+        else
+            error(['Not handling ' num2str(length(data)) ' vertices']);
+        end
+    end
+    
+    meshvec = (data == 0);
+    mesh_color = [220 220 220]/255;
+    
+    % threshold
+    if(exist('min_thresh', 'var'))
+        data(data < min_thresh) = min_thresh;
+        data(data > max_thresh) = max_thresh;
+        data(non_cortex(1)) = min_thresh;
+        data(non_cortex(2)) = max_thresh;
+    end
+    
+    % compute boundary
+    BoundaryVec = zeros(length(labels), 1);
+    maxNeighbors = size(mesh.vertexNbors, 1);
+    for i = 1:length(labels)
+        label_vertex = int32(labels(i));
+        for k = 1:maxNeighbors
+            v_neighbor = mesh.vertexNbors(k, i);
+            if(v_neighbor ~= 0 && int32(labels(v_neighbor)) ~= label_vertex)
+                BoundaryVec(i) = 1;
+            end
+        end
+    end
+    boundary_color = [0, 0, 0];
+    
+    % ==================== DRAW ====================
+    if(strcmp(hemi, 'lh'))
+        % --- Subplot 1: 左半球 外侧面 ---
+        subplot('Position', pos(1, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(-90, 0); axis off;
+        apply_3d_render_style(s); % 嵌入 3D 光照与材质
+
+        % --- Subplot 2: 左半球 内侧面 ---
+        subplot('Position', pos(2, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        ncd(meshvec == 1, 1, 1) = mesh_color(1);
+        ncd(meshvec == 1, 1, 2) = mesh_color(2);
+        ncd(meshvec == 1, 1, 3) = mesh_color(3);    
+        s.CData = ncd;
+        view(90, 0); axis off;
+        apply_3d_render_style(s);
+
+        % --- Subplot 3: 左半球 顶面 ---
+        subplot('Position', pos(3, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(90, 90); axis off;
+        apply_3d_render_style(s);
+
+        % --- Subplot 8: 左半球 底面 ---
+        subplot('Position', pos(8, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(90, -90); axis off;
+        apply_3d_render_style(s);
+
+    else
+        % --- Subplot 5: 右半球 外侧面 ---
+        subplot('Position', pos(5, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(90, 0); axis off;
+        apply_3d_render_style(s);
+
+        % --- Subplot 6: 右半球 内侧面 ---
+        subplot('Position', pos(6, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        ncd(meshvec == 1, 1, 1) = mesh_color(1);
+        ncd(meshvec == 1, 1, 2) = mesh_color(2);
+        ncd(meshvec == 1, 1, 3) = mesh_color(3);
+        s.CData = ncd;
+        view(-90, 0); axis off;
+        apply_3d_render_style(s);
+
+        % --- Subplot 4: 右半球 顶面 ---
+        subplot('Position', pos(4, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(90, 90); axis off;
+        apply_3d_render_style(s);
+
+        % --- Subplot 7: 右半球 底面 ---
+        subplot('Position', pos(7, :));
+        s = TrisurfMeshData(mesh, data);
+        shading interp;
+        ncd = revert_shading_interp_behaviour(s, m);
+        ncd(BoundaryVec == 1, 1, 1) = boundary_color(1);
+        ncd(BoundaryVec == 1, 1, 2) = boundary_color(2);
+        ncd(BoundaryVec == 1, 1, 3) = boundary_color(3);
+        s.CData = ncd;
+        view(90, -90); axis off;
+        apply_3d_render_style(s);
+    end
+end
+end
+
+%% ==================== 辅助子函数 (新增) ====================
+function apply_3d_render_style(patch_handle)
+% 赋予大脑 Patch 对象真实的 3D 立体感与自然质感
+
+axis vis3d;           % 固定三维高宽比，旋转或视角改变时不发生扭曲
+lighting gouraud;     % 开启高罗德平滑光照
+material dull;        % 设置哑光生物材质 (漫反射强、高光自然)
+
+% 挂载方向随相机移动的跟随光源
+camlight('headlight');
+
+% 调整环境光与高光控制，防止暗部过黑或亮点曝光
+set(patch_handle, ...
+    'SpecularExponent', 15, ...  % 高光发散度
+    'SpecularStrength', 0.1, ... % 弱镜面反射 (避免像塑料)
+    'DiffuseStrength',  0.8, ... % 强漫反射 (展现立体折射)
+    'AmbientStrength',  0.4);    % 环境光 (充实凹陷阴影)
+end
+
+function ncd = revert_shading_interp_behaviour(s, m)
+s = get(s);
+cdat = s.FaceVertexCData;
+cl = get(gca, 'CLim');
+sz = cl(2) - cl(1);
+idxf = zeros(length(cdat), 1);
+ncd = zeros(length(cdat), 1, 3);
+for x = 1: length(cdat)
+    for y = 1
+        c = cdat(x, y);
+        idxf(x, y) = ((c - cl(1)) / sz) * (size(m, 1) - 1);
+        ncd(x, y, 1: 3) = m(round(idxf(x, y)) + 1, :);
+    end
+end
+end

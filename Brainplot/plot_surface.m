@@ -31,7 +31,7 @@ colors = [GenColormap(colors(1:128,:), ceil(valid_ind/2)); GenColormap(colors(12
 
 
 % 可视化
-CBIG_DrawSurfaceMapsWithBoundary_wcw(lh_data, rh_data, lh_labels, rh_labels, ...
+CBIG_DrawSurfaceMapsWithBoundary_wcw_3d(lh_data, rh_data, lh_labels, rh_labels, ...
     'fsaverage', 'inflated', min_thresh, max_thresh, colors);
 
 all_axes = findobj(gcf, 'Type', 'axes');
