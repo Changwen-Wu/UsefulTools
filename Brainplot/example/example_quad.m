@@ -3,6 +3,8 @@
 % Brainplot/Parcellations/FreeSurfer5.3/fsaverage/label/.
 example_dir = fileparts(mfilename('fullpath'));
 brainplot_dir = fileparts(example_dir);
+image_dir = fullfile(example_dir, 'images');
+if ~isfolder(image_dir), mkdir(image_dir); end
 addpath(brainplot_dir, fullfile(brainplot_dir, 'BasicTools'), ...
     fullfile(brainplot_dir, 'surf'), example_dir);
 
@@ -20,5 +22,5 @@ colors = mymap('RdYlGn');
 fig_quad = plot_quad_brain_map(brain_data, label_name, annot_lh, annot_rh, ...
     colors, 'CLim', [0, 1], 'scale_factor', 8 / 8.5);
 
-exportgraphics(fig_quad, fullfile(example_dir, 'brain_quad_standalone.tif'), ...
+exportgraphics(fig_quad, fullfile(image_dir, 'brain_quad_standalone.tif'), ...
     'Resolution', 300);

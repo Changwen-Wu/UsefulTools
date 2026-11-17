@@ -3,6 +3,8 @@
 % under Brainplot/Parcellations/FreeSurfer5.3/fsaverage/label/.
 example_dir = fileparts(mfilename('fullpath'));
 brainplot_dir = fileparts(example_dir);
+image_dir = fullfile(example_dir, 'images');
+if ~isfolder(image_dir), mkdir(image_dir); end
 addpath(brainplot_dir, fullfile(brainplot_dir, 'BasicTools'), ...
     fullfile(brainplot_dir, 'surf'), example_dir);
 
@@ -20,6 +22,6 @@ yName = 'testy';
     'UseSpin', false, 'xName', xName, 'yName', yName, 'CorrType', 'Spearman', ...
     'X_bar_name', 'xbar', 'Y_bar_name', 'ybar', 'x_limits', [-20,220], 'y_limits', [-20,220]);
 
-exportgraphics(fig_handle1, fullfile(example_dir, ['Scatter_' xName '.tif']), 'Resolution', 300);
-exportgraphics(fig_handle2, fullfile(example_dir, ['brain_' yName '.tif']), 'Resolution', 300);
-exportgraphics(fig_quad, fullfile(example_dir, ['brain_quad_' yName '.tif']), 'Resolution', 300);
+exportgraphics(fig_handle1, fullfile(image_dir, ['Scatter_' xName '.tif']), 'Resolution', 300);
+exportgraphics(fig_handle2, fullfile(image_dir, ['brain_' yName '.tif']), 'Resolution', 300);
+exportgraphics(fig_quad, fullfile(image_dir, ['brain_quad_' yName '.tif']), 'Resolution', 300);
