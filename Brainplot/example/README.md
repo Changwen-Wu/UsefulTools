@@ -26,7 +26,7 @@ example/
 - 保留完整的 `Brainplot` 目录，包括 `BasicTools/`、`surf/` 和 `Parcellations/`。两个脚本会自动添加绘图所需路径。
 - 表面读取依赖 `BasicTools/` 中与操作系统匹配的 MEX 文件。
 
-绘图还需要 FreeSurfer `fsaverage` 的皮层标签。当前仓库未包含下面两个文件，运行前需从对应的 FreeSurfer 数据中准备好它们：
+仓库已包含 `fsaverage`、`fsaverage5`、`fsaverage6` 各自的表面与皮层标签。当前示例使用 `fsaverage`，自动读取下面两个文件：
 
 ```text
 Brainplot/Parcellations/FreeSurfer5.3/fsaverage/label/lh.cortex.label
@@ -34,6 +34,8 @@ Brainplot/Parcellations/FreeSurfer5.3/fsaverage/label/rh.cortex.label
 ```
 
 本目录的 `.annot` 文件定义脑区分区；`lh.cortex.label` 和 `rh.cortex.label` 定义皮层范围。两者都需要。表面读取函数使用上述固定位置，不会仅根据 `FREESURFER_HOME` 自动查找这些文件。
+
+迁移时请复制完整的 `Brainplot` 目录，保留各分辨率下的 `surf/` 与 `label/` 子目录；标签文件不能跨分辨率混用。其他已包含的标签及表面文件见 [FreeSurfer5.3 文件说明](../Parcellations/FreeSurfer5.3/README.md)。
 
 ## 完整相关性示例
 

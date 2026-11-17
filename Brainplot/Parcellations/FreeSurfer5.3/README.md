@@ -1,3 +1,20 @@
+Included surface labels
+=======================
+
+The following `.label` files are included under each mesh's own `label/` directory. They were copied without modification from the corresponding local FreeSurfer5.3 assets; vertex indices were checked against the matching surface resolution.
+
+| Surface | Vertices per hemisphere | Included labels (both `lh` and `rh`) |
+| --- | --- | --- |
+| `fsaverage` | 163842 | `cortex`, `Medial_wall`, `aparc`, `oasis.chubs.medialpfc` |
+| `fsaverage5` | 10242 | `cortex`, `Medial_wall` |
+| `fsaverage6` | 40962 | `cortex`, `Medial_wall` |
+
+There are 16 `.label` files in total. Each resolution also includes `surf/lh.sphere` and `surf/rh.sphere`, required by `CBIG_ReadNCAvgMesh` when loading a surface. The current Brainplot examples use `fsaverage` and read `fsaverage/label/lh.cortex.label` and `fsaverage/label/rh.cortex.label`.
+
+The added `fsaverage5` and `fsaverage6` sphere files were converted from the local neuromaps atlas files `tpl-fsaverage_den-10k_hemi-{L,R}_sphere.surf.gii` and `tpl-fsaverage_den-41k_hemi-{L,R}_sphere.surf.gii`. This changes the file format only: vertex coordinates and face arrays were preserved exactly, and face arrays match the corresponding existing inflated surfaces. The existing high-resolution `fsaverage` spheres were retained.
+
+When moving the toolbox, copy the complete `Brainplot` directory and preserve the `surf/` and `label/` subdirectories. Use labels and surfaces from the same resolution. The Schaefer200 annotations used by the examples remain in `Brainplot/example/`; this update adds surface labels, not the full annotation collection described below.
+
 References
 ==========
 + Schaefer A, Kong R, Gordon EM, Laumann TO, Zuo XN, Holmes AJ, Eickhoff SB, Yeo BTT. [**Local-Global parcellation of the human cerebral cortex from intrinsic functional connectivity MRI**](http://people.csail.mit.edu/ythomas/publications/2018LocalGlobal-CerebCor.pdf), *Cerebral Cortex*, 29:3095-3114, 2018
