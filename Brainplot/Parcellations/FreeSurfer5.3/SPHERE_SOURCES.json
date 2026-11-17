@@ -1,0 +1,31 @@
+{
+  "retrieved_on": "2026-11-17",
+  "source": "FreeSurfer official tutorial_versions_centos6 distribution",
+  "processing": "Downloaded original FreeSurfer binary files; no conversion or resampling.",
+  "files": [
+    {
+      "path": "fsaverage5/surf/lh.sphere",
+      "bytes": 368946,
+      "sha256": "5772df32ee7a0eaaf1f3296a3c4f1c51c075e7fe58e53cbc92bdb5ddec62fbf4",
+      "url": "https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage5/surf/lh.sphere"
+    },
+    {
+      "path": "fsaverage5/surf/rh.sphere",
+      "bytes": 368946,
+      "sha256": "5772df32ee7a0eaaf1f3296a3c4f1c51c075e7fe58e53cbc92bdb5ddec62fbf4",
+      "url": "https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage5/surf/rh.sphere"
+    },
+    {
+      "path": "fsaverage6/surf/lh.sphere",
+      "bytes": 1474866,
+      "sha256": "9d1b6805f9e4831f903f358d7677d7c3378b6fca9b70300e3e72aeff503b001f",
+      "url": "https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage6/surf/lh.sphere"
+    },
+    {
+      "path": "fsaverage6/surf/rh.sphere",
+      "bytes": 1474866,
+      "sha256": "9d1b6805f9e4831f903f358d7677d7c3378b6fca9b70300e3e72aeff503b001f",
+      "url": "https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage6/surf/rh.sphere"
+    }
+  ]
+}

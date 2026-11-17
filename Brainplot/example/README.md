@@ -35,7 +35,7 @@ Brainplot/Parcellations/FreeSurfer5.3/fsaverage/label/rh.cortex.label
 
 本目录的 `.annot` 文件定义脑区分区；`lh.cortex.label` 和 `rh.cortex.label` 定义皮层范围。两者都需要。表面读取函数使用上述固定位置，不会仅根据 `FREESURFER_HOME` 自动查找这些文件。
 
-迁移时请复制完整的 `Brainplot` 目录，保留各分辨率下的 `surf/` 与 `label/` 子目录；标签文件不能跨分辨率混用。指定来源未提供 `fsaverage5`、`fsaverage6` 的左右半球 `sphere` 文件，仓库也不包含转换生成的替代文件；如需通过 `CBIG_ReadNCAvgMesh` 加载这两种分辨率，应先补充对应的原始球面文件。标签清单及文件状态见 [FreeSurfer5.3 文件说明](../Parcellations/FreeSurfer5.3/README.md)。
+迁移时请复制完整的 `Brainplot` 目录，保留各分辨率下的 `surf/` 与 `label/` 子目录；标签文件不能跨分辨率混用。GRETNA_CW 来源未提供的 `fsaverage5`、`fsaverage6` 左右半球球面文件，已从 FreeSurfer 官方服务器原样补齐，未经过转换或重采样。标签清单、球面来源与校验值见 [FreeSurfer5.3 文件说明](../Parcellations/FreeSurfer5.3/README.md)。
 
 ## 完整相关性示例
 

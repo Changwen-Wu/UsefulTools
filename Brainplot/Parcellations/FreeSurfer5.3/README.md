@@ -11,7 +11,14 @@ The following `.label` files are included under each mesh's own `label/` directo
 
 There are 16 `.label` files in total. The current Brainplot examples use `fsaverage` and read `fsaverage/label/lh.cortex.label` and `fsaverage/label/rh.cortex.label`. The retained `fsaverage/surf/lh.sphere` and `rh.sphere` are original files and match the specified GRETNA_CW source byte-for-byte.
 
-The specified source does not contain `surf/lh.sphere` or `surf/rh.sphere` for `fsaverage5` or `fsaverage6`. These four files are therefore absent here; the previously converted versions have been removed. `CBIG_ReadNCAvgMesh` requires these sphere files even when loading an inflated surface. Before using either lower resolution with that reader, supply its corresponding original FreeSurfer sphere files. No converted sphere files are included.
+The GRETNA_CW source does not contain the four lower-resolution sphere files. Original `lh.sphere` and `rh.sphere` binaries for `fsaverage5` and `fsaverage6` were therefore downloaded unchanged from the official FreeSurfer distribution on 2026-11-17. No format conversion or resampling was performed. Each downloaded sphere has the expected vertex count and exactly the same face array as its corresponding inflated surface in this repository.
+
+| Added original files | Official source directory |
+| --- | --- |
+| `fsaverage5/surf/lh.sphere`, `fsaverage5/surf/rh.sphere` | [FreeSurfer fsaverage5/surf](https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage5/surf/) |
+| `fsaverage6/surf/lh.sphere`, `fsaverage6/surf/rh.sphere` | [FreeSurfer fsaverage6/surf](https://www.freesurfer.net/pub/dist/freesurfer/tutorial_versions_centos6/freesurfer/subjects/fsaverage6/surf/) |
+
+Exact download URLs, byte sizes and SHA-256 checksums are recorded in [SPHERE_SOURCES.json](SPHERE_SOURCES.json). `CBIG_ReadNCAvgMesh` first reads `sphere` for the mesh and then uses the requested surface coordinates (for example, `inflated`) for display, so sphere files are required even when the rendered brain is inflated.
 
 When moving the toolbox, copy the complete `Brainplot` directory and preserve the `surf/` and `label/` subdirectories. Use labels and surfaces from the same resolution. The Schaefer200 annotations used by the examples remain in `Brainplot/example/`; this update adds surface labels, not the full annotation collection described below.
 
