@@ -1,7 +1,7 @@
 Included surface labels
 =======================
 
-The following `.label` files are included under each mesh's own `label/` directory. They were copied without modification from the corresponding local FreeSurfer5.3 assets; vertex indices were checked against the matching surface resolution.
+The following `.label` files are included under each mesh's own `label/` directory. All 16 files were copied without modification from `E:\Resources\GRETNA_CW\Parcellations\FreeSurfer5.3` and verified byte-for-byte against that source. Vertex indices were checked against the matching surface resolution.
 
 | Surface | Vertices per hemisphere | Included labels (both `lh` and `rh`) |
 | --- | --- | --- |
@@ -9,9 +9,9 @@ The following `.label` files are included under each mesh's own `label/` directo
 | `fsaverage5` | 10242 | `cortex`, `Medial_wall` |
 | `fsaverage6` | 40962 | `cortex`, `Medial_wall` |
 
-There are 16 `.label` files in total. Each resolution also includes `surf/lh.sphere` and `surf/rh.sphere`, required by `CBIG_ReadNCAvgMesh` when loading a surface. The current Brainplot examples use `fsaverage` and read `fsaverage/label/lh.cortex.label` and `fsaverage/label/rh.cortex.label`.
+There are 16 `.label` files in total. The current Brainplot examples use `fsaverage` and read `fsaverage/label/lh.cortex.label` and `fsaverage/label/rh.cortex.label`. The retained `fsaverage/surf/lh.sphere` and `rh.sphere` are original files and match the specified GRETNA_CW source byte-for-byte.
 
-The added `fsaverage5` and `fsaverage6` sphere files were converted from the local neuromaps atlas files `tpl-fsaverage_den-10k_hemi-{L,R}_sphere.surf.gii` and `tpl-fsaverage_den-41k_hemi-{L,R}_sphere.surf.gii`. This changes the file format only: vertex coordinates and face arrays were preserved exactly, and face arrays match the corresponding existing inflated surfaces. The existing high-resolution `fsaverage` spheres were retained.
+The specified source does not contain `surf/lh.sphere` or `surf/rh.sphere` for `fsaverage5` or `fsaverage6`. These four files are therefore absent here; the previously converted versions have been removed. `CBIG_ReadNCAvgMesh` requires these sphere files even when loading an inflated surface. Before using either lower resolution with that reader, supply its corresponding original FreeSurfer sphere files. No converted sphere files are included.
 
 When moving the toolbox, copy the complete `Brainplot` directory and preserve the `surf/` and `label/` subdirectories. Use labels and surfaces from the same resolution. The Schaefer200 annotations used by the examples remain in `Brainplot/example/`; this update adds surface labels, not the full annotation collection described below.
 
